@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- certsync_v1alpha1_tlssecretsync.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
