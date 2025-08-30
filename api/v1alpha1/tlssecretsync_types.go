@@ -61,7 +61,6 @@ type SecretRef struct {
 type TargetSpec struct {
 	// Target namespaces to copy secrets to
 	// +kubebuilder:validation:MinItems=1
-	// +kubebuilder:validation:UniqueItems=true
 	// +listType=atomic
 	Namespaces []string `json:"namespaces"`
 }
