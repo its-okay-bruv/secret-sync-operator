@@ -25,17 +25,121 @@ import (
 
 // TLSSecretSyncSpec defines the desired state of TLSSecretSync
 type TLSSecretSyncSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// SourceRef points to the source TLS Secret to copy from.
+	SourceRef SecretRef `json:"sourceRef"`
 
-	// Foo is an example field of TLSSecretSync. Edit tlssecretsync_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Targets lists the namespaces that should receive a copy of the Secret.
+	Targets TargetSpec `json:"targets"`
+
+	// CopyAnnotations copies annotations from the source Secret to targets.
+	// +kubebuilder:default:=true
+	CopyAnnotations bool `json:"copyAnnotations,omitempty"`
+
+	// CopyLabels copies labels from the source Secret to targets.
+	// +kubebuilder:default:=true
+	CopyLabels bool `json:"copyLabels,omitempty"`
+
+	// PruneOnDelete deletes target Secrets when this resource is deleted.
+	// +kubebuilder:default:=true
+	PruneOnDelete bool `json:"pruneOnDelete,omitempty"`
+
+	// RefreshPolicy controls when synchronization happens.
+	// Mode: "OnChange" or "Periodic" (if Periodic, set periodSeconds > 0).
+	// +kubebuilder:validation:Optional
+	RefreshPolicy *RefreshPolicy `json:"refreshPolicy,omitempty"`
+}
+
+type SecretRef struct {
+	// Namespace of the source Secret.
+	// +kubebuilder:validation:MinLength=1
+	Namespace string `json:"namespace"`
+	// Name of the source Secret.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+}
+
+type TargetSpec struct {
+	// Target namespaces to copy secrets to
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:UniqueItems=true
+	// +listType=atomic
+	Namespaces []string `json:"namespaces"`
+}
+
+type RefreshPolicy struct {
+	// Mode selects sync behavior.
+	// +kubebuilder:validation:Enum=OnChange;Periodic
+	Mode string `json:"mode"`
+	// PeriodSeconds is used only when Mode=Periodic.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Optional
+	PeriodSeconds *int64 `json:"periodSeconds,omitempty"`
 }
 
 // TLSSecretSyncStatus defines the observed state of TLSSecretSync
 type TLSSecretSyncStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ObservedSourceResourceVersion is the last processed RV of the source Secret.
+	// +optional
+	ObservedSourceResourceVersion string `json:"observedSourceResourceVersion,omitempty"`
+
+	// Summary provides aggregate counters for sync state.
+	// +optional
+	Summary *SummaryStatus `json:"summary,omitempty"`
+
+	// Conditions follow K8s conventions (e.g., Ready, Degraded).
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// Failures lists only targets currently failing to sync.
+	// Entries are unique per namespace and removed on recovery.
+	// +kubebuilder:validation:Optional
+	// +listType=atomic
+	Failures []FailureEntry `json:"failures,omitempty"`
+}
+
+// SummaryStatus aggregates sync counts.
+type SummaryStatus struct {
+	// TotalTargets is how many namespaces are desired.
+	// +kubebuilder:validation:Minimum=0
+	TotalTargets int32 `json:"totalTargets"`
+
+	// Synced is how many are currently in sync.
+	// +kubebuilder:validation:Minimum=0
+	Synced int32 `json:"synced"`
+
+	// Failed is how many are currently failing (len(Failures)).
+	// +kubebuilder:validation:Minimum=0
+	Failed int32 `json:"failed"`
+
+	// LastSyncTime is when the last reconciliation pass finished.
+	// +optional
+	LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
+}
+
+// FailureEntry describes a target namespace that failed to sync.
+type FailureEntry struct {
+	// Namespace of the failing target.
+	// +kubebuilder:validation:MinLength=1
+	Namespace string `json:"namespace"`
+
+	// Reason is a short, machine-readable code (e.g., NamespaceMissing, RBACDenied).
+	// +kubebuilder:validation:MinLength=1
+	Reason string `json:"reason"`
+
+	// Message is a human-readable description of the failure.
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// LastErrorTime records when this failure last occurred.
+	// +optional
+	LastErrorTime *metav1.Time `json:"lastErrorTime,omitempty"`
+
+	// RetryCount is how many consecutive reconcile attempts failed for this namespace.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	RetryCount int32 `json:"retryCount,omitempty"`
 }
 
 //+kubebuilder:object:root=true
